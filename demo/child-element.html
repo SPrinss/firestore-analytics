@@ -1,0 +1,40 @@
+<link rel="import" href="../../polymer/polymer-element.html">
+
+<dom-module id="child-element">
+  <template>
+    <style>
+      :host {
+        display: block;
+      }
+    </style>
+    
+    <button 
+      on-click="_startSession"
+    >Start session</button>    
+    <button 
+      on-click="_sendEvent"
+    >Click to send event</button>
+
+  </template>
+  <script>
+    /**
+     * `child-element`
+     * Demo element to show event handling by firestore-analytics mixin
+     *
+     * @customElement
+     * @polymer
+     */
+    class ChildElement extends Polymer.Element {
+      static get is() { return 'child-element'; }
+      _startSession(evt) {
+        this.dispatchEvent(new CustomEvent('your-custom-event-name', {detail: {category: 'meta', action: 'session', value: 'start'}, bubbles: true, composed: true}));
+      }
+      _sendEvent(evt) {
+        this.dispatchEvent(new CustomEvent('your-custom-event-name', {detail: {category: 'session', action: 'twitterShare', value: true}, bubbles: true, composed: true}));
+        this.dispatchEvent(new CustomEvent('your-custom-event-name', {detail: {category: 'userGesture', action: 'tap', value: 'av-button', context: null, details: {playing: true}}, bubbles: true, composed: true}));
+      }
+    }
+
+    window.customElements.define(ChildElement.is, ChildElement);
+  </script>
+</dom-module>

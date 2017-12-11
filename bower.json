@@ -1,0 +1,20 @@
+{
+  "name": "firestore-analytics",
+  "description": "Stores event and session data to Firebase Firestore from child event data Edit",
+  "main": "firestore-analytics.html",
+  "dependencies": {
+    "polymer": "Polymer/polymer#^2.0.0",
+    "app-storage": "PolymerElements/app-storage#^2.0.2",
+    "ua-parser-js": "^0.7.17",
+    "polymerfire": "Firebase/polymerfire#f1073078115b72280984d5d9b1c88d75f510fc9a"    
+  },
+  "devDependencies": {
+    "iron-demo-helpers": "PolymerElements/iron-demo-helpers#^2.0.0",
+    "web-component-tester": "Polymer/web-component-tester#^6.0.0",
+    "webcomponentsjs": "webcomponents/webcomponentsjs#^1.0.0"
+  },
+  "resolutions": {
+    "polymer": "^2.0.0",
+    "polymerfire": "f1073078115b72280984d5d9b1c88d75f510fc9a"    
+  }
+}

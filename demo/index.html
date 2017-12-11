@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, minimum-scale=1, initial-scale=1, user-scalable=yes">
+
+    <title>firestore-analytics demo</title>
+
+    <script src="../../webcomponentsjs/webcomponents-lite.js"></script>
+
+    <link rel="import" href="../../iron-demo-helpers/demo-pages-shared-styles.html">
+    <link rel="import" href="../../iron-demo-helpers/demo-snippet.html">
+    <link rel="import" href="../../polymerfire/firebase-app.html">
+    <link rel="import" href="../firestore-analytics.html">
+    <link rel="import" href="main-element.html">
+    
+    <custom-style>
+      <style is="custom-style" include="demo-pages-shared-styles">
+      </style>
+    </custom-style>
+  </head>
+  <body>
+    <firebase-app
+      api-key= "AIzaSyDoBdgL9kxKE9-8bVKlH2b1Cf_CjMmekJM"
+      auth-domain= "firestore-analytics.firebaseapp.com"
+      database-url= "https://firestore-analytics.firebaseio.com"
+      project-id= "firestore-analytics"
+    ></firebase-app>
+
+    <div class="vertical-section-container centered">
+      <h3>Basic firestore-analytics demo</h3>
+      <demo-snippet>
+        <template>
+
+          <firestore-analytics
+            event-name="your-custom-event-name"
+          ></firestore-analytics>
+
+        </template>
+      </demo-snippet>
+    </div>
+
+    <div class="vertical-section-container centered">
+        <h3>Basic firestore-analytics demo</h3>
+        <demo-snippet>
+          <dom-bind id="mainElementTemplate">
+            <template is="dom-bind" >            
+
+              <p>Latest added/updated id: {{latestId}}</p>
+              
+              <main-element
+                id="mainElement"
+                event-name="your-custom-event-name"
+                object-to-add-to-firestore-events='{"storyId": "-testing"}'
+                object-to-add-to-firestore-sessions='{"storyId": "-testing"}'
+              ></main-element>
+
+            </dom-bind>
+          </demo-snippet>
+        </demo-snippet>
+      </div>    
+
+      <script>
+        mainElementTemplate.latestId = "none yet"
+
+        function logEvents(evt) {
+          mainElementTemplate.latestId = evt.detail.value;
+        }
+        mainElement.addEventListener('firestore-analytics', logEvents);
+      </script>
+  </body>
+</html>

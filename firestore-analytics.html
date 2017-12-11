@@ -1,0 +1,282 @@
+<link rel="import" href="../polymer/polymer-element.html">
+<link rel="import" href="../app-storage/app-localstorage/app-localstorage-document.html">
+<script src="../ua-parser-js/src/ua-parser.js"></script>
+
+<dom-module id="firestore-analytics">
+  <template>
+    <style>
+      :host {
+        display: block;
+      }
+    </style>
+
+    <app-localstorage-document 
+      id="user-token-storage"
+      key="firestoreAnalyticsUserToken" 
+      data="{{firestoreAnalyticsUserToken}}"
+    ></app-localstorage-document>
+
+  </template>
+  <script>
+    /**
+     * `firestore-analytics`
+     * Stores event and session data to Firebase Firestore from child event data
+     *
+     * @customElement
+     * @polymer
+     * @demo demo/index.html
+     */
+    class FirestoreAnalytics extends Polymer.Element {
+      static get is() { return 'firestore-analytics'; }
+      static get properties() {
+        return {
+          firestoreAnalyticsUserToken: {
+            type: String,
+            notify: true
+          },
+
+          sessionToken: {
+            type: String,
+            notify: true            
+          },
+          userCharacteristics: {
+            type: Object,
+            notify: true            
+          },
+
+          eventName: {
+            type: String,
+            value: 'firestore-analytics'
+          },
+
+          storeEvents: {
+            type: Boolean,
+            value: true
+          },
+
+          objectToAddToFirestoreEvents: {
+            type: Object,
+            value: {}
+          },
+
+          objectToAddToFirestoreSessions: {
+            type: Object,
+            value: {}
+          }          
+        };
+      }
+
+      static get observers() {
+        return  [
+        "_storeUserDataToSession(sessionToken, firestoreAnalyticsUserToken, userCharacteristics.*)"          
+        ]
+      }                
+
+      connectedCallback() {
+        super.connectedCallback();
+        Polymer.RenderStatus.afterNextRender(this, function() {
+          this._setUserData();
+          this.addEventListener(this.eventName, this._handleAnalyticsEvent.bind(this));
+        });
+      }      
+
+      /**
+       * Sets newly created user token in localmemory
+       *
+       * @return {string} The newly created user token
+       */
+       setNewUserToken() {
+        var newUserToken = this._generateToken();
+        this.set('firestoreAnalyticsUserToken', newUserToken);
+        return newUserToken;
+      }
+
+      /**
+       * Handles user entry on a page. Sets user characteristics.
+       *
+       */
+       _setUserData() {
+        this._setUserCharacteristics();
+        var userToken = this.firestoreAnalyticsUserToken || this.setNewUserToken();
+        return userToken;
+      }
+
+      /**
+       * Computes information about the user, such as browser and operating system. Writes the outcome to property userCharacteristics.
+       * 
+       * @return {Object} The user data gathered
+       * 
+       */  
+      _setUserCharacteristics() {
+        var parser = new UAParser();
+        var result = parser.getResult();
+        var userCharacteristics = {};
+        userCharacteristics.browserName = result.browser.name;
+        userCharacteristics.browserVersion = result.browser.version;
+        userCharacteristics.osName = result.os.name;
+        userCharacteristics.osVersion = result.os.version;
+        userCharacteristics.deviceModel = result.device.model;
+        userCharacteristics.deviceType = result.device.type;
+
+        this.set('userCharacteristics', userCharacteristics)
+        return userCharacteristics;
+      }
+
+      /**
+       * Stores user data to session data once all information is available
+       *
+       * @param {String} sessionToken The current session token.
+       *
+       * @param {String} userToken The current user token.
+       *
+       * @param {Object} userCharacteristicsChange Characteristics of the user
+       */   
+      _storeUserDataToSession(sessionToken, userToken, userCharacteristicsChange) {
+        var userCharacteristics = userCharacteristicsChange.base;
+
+        if(sessionToken && userToken && userCharacteristics) {
+          var dataToAdd = userCharacteristics;
+          dataToAdd.userToken = userToken;
+
+          this._updateDocInDatabase('sessions', sessionToken, dataToAdd)
+        }
+      }
+
+      /**
+       * Stores initial information about a user's session. 
+       *
+       */      
+      initSession() {
+        var sessionData = {};
+        sessionData.initialLoadAtTime = this._getCurrentTime();
+        sessionData.lastEventTime = this._getCurrentTime();
+        sessionData.hostName = this._getHostUrl();
+        Object.assign(sessionData, this.objectToAddToFirestoreSessions);
+
+        this._addDocToDatabase('sessions', sessionData).then(
+          (function(docRef) {
+            var sessionToken = docRef;
+            this.set('sessionToken', sessionToken)
+            // Write new token as a value of the newly created doc
+            this._updateDocInDatabase('sessions', sessionToken, {sessionToken: sessionToken});
+          }).bind(this)
+        );
+      }
+
+      /**
+       * Handles analytics events from child elements. Calls method `_storeEventDataInDatabase` to store value sent with the event in the database.
+       *
+       * @param {Object} evt The event that was fired.
+       * 
+       */  
+       _handleAnalyticsEvent(evt) {
+        // Don't store when store events is false
+        if(!this.storeEvents) return;
+
+        var detail = evt.detail;
+        // start new session when user started analytics session
+        if(detail.category === 'meta' && detail.action === 'session' && detail.value === 'start') return this.initSession();
+
+        // events can't be stored until the session has been started
+        if(!this.sessionToken) return;
+
+        // update sessions data on session events
+        if(detail.category === 'session') return this._updateDocInDatabase('sessions', this.sessionToken, {[detail.action] : detail.value});
+        // store non session events
+        if(detail.category !== 'session' && detail.category !== 'meta') this._storeEventDataInDatabase(detail);
+      }      
+
+      /**
+       * Stores event data in session doc and in new event doc
+       *
+       * @param {Object} eventData The eventData that needs to be stored in the database.
+       */      
+      _storeEventDataInDatabase(eventData) {
+        if(!this.sessionToken) return;
+        // add meta information to event
+        eventData.timeStamp = this._getCurrentTime();
+        eventData.userToken = this.firestoreAnalyticsUserToken;
+        eventData.sessionToken = this.sessionToken;
+
+        Object.assign(eventData, this.objectToAddToFirestoreEvents);
+
+        // store event and update session information
+        this._addDocToDatabase('events', eventData).then(
+          (function(docId) {
+            // Update last event time when event is stored succesfully
+            this._updateDocInDatabase('sessions', eventData.sessionToken, {lastEventTime: eventData.timeStamp});            
+          }).bind(this)
+        );
+      }
+
+      /**
+       * Stores an Object with data into a new doc added to the collection 'collectionName'
+       *
+       * @param {String} collectionName The database collection name to write to.
+       * 
+       * @param {Object} dataToAdd The information to write to the database
+       * 
+       */      
+      _addDocToDatabase(collectionName, dataToAdd) {
+        if (!collectionName) return;
+        var cleanDataToAdd = this._removeEmptyObjectValues(dataToAdd);
+
+        return firebase.firestore().collection(collectionName).add(
+          cleanDataToAdd
+        ).then((function(docRef) {
+          this.dispatchEvent(new CustomEvent('firestore-analytics', {detail: {category: 'doc', action: 'added', value: docRef.id}}));
+          return docRef.id;
+        }).bind(this));
+      }
+
+      /**
+       * Updates an Object with data into an existing doc (or new if the doc doesn't exist) of the collection 'collectionName'. This method overwrites or adds information, it doesn't remove information from a doc.
+       *
+       * @param {String} collectionName The database collection name to write to.
+       * 
+       * @param {String} docName The doc to write to.
+       * 
+       * @param {Object} dataToUpdate The information to write to the database
+       * 
+       */  
+      _updateDocInDatabase(collectionName, docName, dataToUpdate) {
+        if(!collectionName || !docName) return;
+
+        var cleanDataToUpdate = this._removeEmptyObjectValues(dataToUpdate);
+        firebase.firestore().collection(collectionName).doc(docName).set(
+          cleanDataToUpdate,
+          {merge:true}
+        ).then((function() {
+          this.dispatchEvent(new CustomEvent('firestore-analytics', {detail: {category: 'doc', action: 'updated', value: docName}}))
+        }).bind(this));
+      }      
+
+      _removeEmptyObjectValues(obj) {
+        for (var prop in obj) {
+          if (obj.hasOwnProperty(prop) && obj[prop] === undefined || obj[prop] === null || typeof obj[prop] === "undefined") {
+              delete obj[prop];
+          }
+        }
+        return obj;
+      }
+
+      _getHostUrl() {
+        return window.location.protocol + '//' + window.location.host;
+      }      
+
+      _getCurrentTime() {
+        var date = new Date()
+        return date.getTime()
+      }
+
+      _generateToken() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      } 
+    }
+
+    window.customElements.define(FirestoreAnalytics.is, FirestoreAnalytics);
+  </script>
+</dom-module>

@@ -1,0 +1,30 @@
+<link rel="import" href="../../polymer/polymer-element.html">
+<link rel="import" href="../firestore-analytics.html">
+<link rel="import" href="child-element.html">
+
+<dom-module id="main-element">
+  <template>
+    <style>
+      :host {
+        display: block;
+      }
+    </style>
+    
+    <child-element></child-element>
+
+  </template>
+  <script>
+    /**
+     * `main-element`
+     * Demo element to show event handling by firestore-analytics mixin
+     *
+     * @customElement
+     * @polymer
+     */
+    class MainElement extends FirestoreAnalytics {
+      static get is() { return 'main-element'; }
+    }
+
+    window.customElements.define(MainElement.is, MainElement);
+  </script>
+</dom-module>
